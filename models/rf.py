@@ -4,21 +4,22 @@ Created on Wed Feb  4 13:25:50 2026
 
 @author: MauduH
 """
-
 # IMPORT LIBRARIES
 import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, ConfusionMatrixDisplay
-#running code by Hudivha
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+
 
 # LOAD TRAIN & TEST DATA
-train_df = pd.read_excel(r"C:\Users\MauduH\Documents\Migael\batchedtrain_dataset.xlsx")
-test_df  = pd.read_excel(r"C:\Users\MauduH\Documents\Migael\batchedtest_dataset.xlsx")
+train_df = pd.read_excel(BASE_DIR / "Parameter Optimisation" / "data" / "batchedtrain_dataset.xlsx")
+test_df  = pd.read_excel(BASE_DIR / "Parameter Optimisation" / "data" / "batchedtest_dataset.xlsx")
 
 # DEFINE FEATURES & TARGET
 TARGET = "sic_batch"
-
 FEATURES = [
     "offpeakconsumption",
     "standardconsumption",
