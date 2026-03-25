@@ -80,7 +80,54 @@ print("\n=== MOST COMMON PARAMETERS ===")
 print(param_counts.head())
 
 # EXPORT TO EXCEL
-results_df.to_excel(r"C:\Users\MauduH\Documents\Migael\customer_results_arima.xlsx", index=False)
-param_counts.to_excel(r"C:\Users\MauduH\Documents\Migael\parameter_frequency_arima.xlsx", index=False)
+results_df.to_excel(r"C:\Users\MauduH\Documents\Migael\customer_results2.xlsx", index=False)
+param_counts.to_excel(r"C:\Users\MauduH\Documents\Migael\parameter_frequency_arima2.xlsx", index=False)
 
-print("\nResults exported to Excel.")
+print("\n=== TESTING COMMON MODEL ARIMA(0,1,0) ===")
+
+common_results = []
+
+order = (0,1,0)
+
+for customer in customers:
+
+    customer_df = df[df["customerid"] == customer]
+
+    ts = customer_df.groupby("reportingmonth")["totalconsumption"].sum()
+    ts = ts.sort_index()
+
+    if len(ts) < 12:
+        continue
+
+    split = int(len(ts) * 0.8)
+
+    train = ts.iloc[:split]
+    test = ts.iloc[split:]
+
+    try:
+
+        model = ARIMA(train, order=order).fit()
+
+        preds = model.forecast(steps=len(test))
+
+        mape = mean_absolute_percentage_error(test, preds) * 100
+
+        common_results.append({
+            "customerid": customer,
+            "ARIMA_model": "ARIMA(0,1,0)",
+            "MAPE": mape
+        })
+
+        print(f"Customer {customer} | MAPE: {mape:.2f}%")
+
+    except:
+        continue
+
+common_df = pd.DataFrame(common_results)
+
+common_df.to_excel(
+    r"C:\Users\MauduH\Documents\Migael\arima_common_model_results.xlsx",
+    index=False
+)
+
+print("\nARIMA(0,1,0) results exported.")
