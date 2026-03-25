@@ -1,74 +1,245 @@
-# utils/data.py
+# import pandas as pd
+
+# def load_and_prepare_data(file_path):
+#     df = pd.read_excel(file_path)
+#     df["reportingmonth"] = pd.to_datetime(df["reportingmonth"])
+
+#     ts = df.groupby("reportingmonth")["totalconsumption"].sum().reset_index()
+#     ts = ts.sort_values("reportingmonth").set_index("reportingmonth")
+
+#     return ts
+
+
+# def create_lags(ts, lags=3):
+#     df = ts.copy()
+#     for i in range(1, lags + 1):
+#         df[f"lag_{i}"] = df["totalconsumption"].shift(i)
+
+#     return df.dropna()
+
+
+# def train_test_split_ts(ts, split_ratio=0.8):
+#     split = int(len(ts) * split_ratio)
+#     train = ts.iloc[:split]
+#     test = ts.iloc[split:]
+#     return train, test
+
 # from pathlib import Path
 # import pandas as pd
-# from sklearn.preprocessing import LabelEncoder
-# from typing import List, Optional, Tuple
 
-# def load_classifier_data(
-#     train_path: Path,
-#     test_path: Path,
-#     target_col: str = "sic_batch",
-#     feature_cols: Optional[List[str]] = None
-# ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.Series, pd.Series, LabelEncoder, List[str]]:
-#     """
-#     Loads train/test Excel files, selects features, and label-encodes the target.
-#     Returns: X_train, X_test, y_train_enc, y_test_enc, label_encoder, feature_names
-#     """
-#     train_df = pd.read_excel(train_path)
-#     test_df  = pd.read_excel(test_path)
 
-#     # Choose features
-#     if feature_cols is None:
-#         # Default: all numeric columns except target
-#         feature_cols = [
-#             c for c in train_df.select_dtypes(include=["number"]).columns
-#             if c != target_col
-#         ]
-#     else:
-#         # Validate features exist
-#         missing = [c for c in feature_cols if c not in train_df.columns]
-#         if missing:
-#             raise ValueError(f"Missing feature(s) in train file: {missing}")
+# def load_dataset(base_dir: Path, relative_path: str = "data/cleanedFortrack_dataset.xlsx") -> pd.DataFrame:
+#     file_path = base_dir / relative_path
+#     df = pd.read_excel(file_path)
+#     df["reportingmonth"] = pd.to_datetime(df["reportingmonth"])
+#     return df
 
-#     X_train = train_df[feature_cols].copy()
-#     X_test  = test_df[feature_cols].copy()
 
-#     # Encode target using a single encoder fitted on train and applied to test
-#     if target_col not in train_df.columns or target_col not in test_df.columns:
-#         raise ValueError(f"Target column '{target_col}' must exist in both files.")
+# def filter_data(
+#     df: pd.DataFrame,
+#     category: str | None = None,
+#     subsic: str | None = None,
+#     customer_id: str | int | None = None,
+# ) -> pd.DataFrame:
+#     out = df.copy()
 
-#     le = LabelEncoder()
-#     y_train_enc = pd.Series(le.fit_transform(train_df[target_col]), name=target_col)
-#     y_test_enc  = pd.Series(le.transform(test_df[target_col]), name=target_col)
+#     if category is not None:
+#         out = out[out["category"] == category]
 
-#     return X_train, X_test, y_train_enc, y_test_enc, le, feature_cols
+#     if subsic is not None:
+#         out = out[out["subsic"] == subsic]
 
-# utils/data.py
-from pathlib import Path
+#     if customer_id is not None:
+#         out = out[out["customerid"] == customer_id]
+
+#     return out
+
+
+# def make_customer_monthly_series(customer_df: pd.DataFrame, target_col: str = "totalconsumption") -> pd.Series:
+#     ts = (
+#         customer_df.groupby("reportingmonth")[target_col]
+#         .sum()
+#         .sort_index()
+#     )
+#     ts.index = pd.to_datetime(ts.index).to_period("M").to_timestamp()
+#     return ts
+
+
+# def split_series_time(ts: pd.Series, test_size: float = 0.2):
+#     split_idx = int(len(ts) * (1 - test_size))
+#     train = ts.iloc[:split_idx]
+#     test = ts.iloc[split_idx:]
+#     return train, test
+
+
+# def create_lagged_frame(ts: pd.Series, lags: int = 3) -> pd.DataFrame:
+#     df = pd.DataFrame({"target": ts})
+#     for i in range(1, lags + 1):
+#         df[f"lag_{i}"] = df["target"].shift(i)
+#     return df.dropna()
+
+# # import pandas as pd
+
+
+# # def load_dataset(base_dir, relative_path="data/cleanedFortrack_dataset.xlsx"):
+# #     file_path = base_dir / relative_path
+# #     df = pd.read_excel(file_path)
+# #     df["reportingmonth"] = pd.to_datetime(df["reportingmonth"])
+# #     return df
+
+
+# # def filter_data(df, category=None, subsic=None, customer_id=None):
+
+# #     data = df.copy()
+
+# #     if category is not None:
+# #         data = data[data["category"] == category]
+
+# #     if subsic is not None:
+# #         data = data[data["subsic"] == subsic]
+
+# #     if customer_id is not None:
+# #         data = data[data["customerid"] == customer_id]
+
+# #     return data
+
+# #     import Utils.data
+# #     print(dir(Utils.data))
+
+# import pandas as pd
+
+
+# def load_dataset(base_dir, relative_path="data/cleanedFortrack_dataset.xlsx"):
+#     file_path = base_dir / relative_path
+#     df = pd.read_excel(file_path)
+#     df["reportingmonth"] = pd.to_datetime(df["reportingmonth"])
+#     return df
+
+
+# def filter_data(df, category=None, subsic=None, customer_id=None):
+
+#     data = df.copy()
+
+#     if category is not None:
+#         data = data[data["category"] == category]
+
+#     if subsic is not None:
+#         data = data[data["subsic"] == subsic]
+
+#     if customer_id is not None:
+#         data = data[data["customerid"] == customer_id]
+
+#     return data
+
+
+# def make_customer_monthly_series(customer_df, target_col="totalconsumption"):
+
+#     ts = (
+#         customer_df
+#         .groupby("reportingmonth")[target_col]
+#         .sum()
+#         .sort_index()
+#     )
+
+#     ts.index = pd.to_datetime(ts.index).to_period("M").to_timestamp()
+
+#     return ts
+
+
+# def split_series_time(ts, test_size=0.2):
+
+#     split_idx = int(len(ts) * (1 - test_size))
+
+#     train = ts.iloc[:split_idx]
+#     test = ts.iloc[split_idx:]
+
+#     return train, test
+
+
+# def create_lagged_frame(ts, lags=3):
+
+#     df = pd.DataFrame({"target": ts})
+
+#     for i in range(1, lags + 1):
+#         df[f"lag_{i}"] = df["target"].shift(i)
+
+#     return df.dropna()
+
 import pandas as pd
-from sklearn.preprocessing import LabelEncoder
-from typing import List, Optional, Tuple
 
-def load_classifier_data(
-    train_path: Path,
-    test_path: Path,
-    target_col: str = "sic_batch",
-    feature_cols: Optional[List[str]] = None
-) -> Tuple[pd.DataFrame, pd.DataFrame, pd.Series, pd.Series, LabelEncoder, List[str]]:
-    train_df = pd.read_excel(train_path)
-    test_df  = pd.read_excel(test_path)
 
-    if feature_cols is None:
-        feature_cols = [c for c in train_df.select_dtypes(include=["number"]).columns if c != target_col]
+# ----------------------------
+# LOAD DATASET
+# ----------------------------
+def load_dataset(base_dir, relative_path="data/cleanedFortrack_dataset.xlsx"):
 
-    X_train = train_df[feature_cols].copy()
-    X_test  = test_df[feature_cols].copy()
+    file_path = base_dir / relative_path
+    df = pd.read_excel(file_path)
 
-    if target_col not in train_df.columns or target_col not in test_df.columns:
-        raise ValueError(f"Target column '{target_col}' missing in train/test files.")
+    df["reportingmonth"] = pd.to_datetime(df["reportingmonth"])
 
-    le = LabelEncoder()
-    y_train_enc = pd.Series(le.fit_transform(train_df[target_col]), name=target_col)
-    y_test_enc  = pd.Series(le.transform(test_df[target_col]), name=target_col)
+    return df
 
-    return X_train, X_test, y_train_enc, y_test_enc, le, feature_cols
+
+# ----------------------------
+# FILTER DATA
+# ----------------------------
+def filter_data(df, category=None, subsic=None, customer_id=None):
+
+    data = df.copy()
+
+    if category is not None:
+        data = data[data["category"] == category]
+
+    if subsic is not None:
+        data = data[data["subsic"] == subsic]
+
+    if customer_id is not None:
+        data = data[data["customerid"] == customer_id]
+
+    return data
+
+
+# ----------------------------
+# CREATE MONTHLY SERIES
+# ----------------------------
+def make_customer_monthly_series(customer_df, target_col="totalconsumption"):
+
+    ts = (
+        customer_df
+        .groupby("reportingmonth")[target_col]
+        .sum()
+        .sort_index()
+    )
+
+    ts.index = pd.to_datetime(ts.index).to_period("M").to_timestamp()
+
+    return ts
+
+
+# ----------------------------
+# TRAIN TEST SPLIT (TIME SERIES)
+# ----------------------------
+def split_series_time(ts, test_size=0.2):
+
+    split_idx = int(len(ts) * (1 - test_size))
+
+    train = ts.iloc[:split_idx]
+    test = ts.iloc[split_idx:]
+
+    return train, test
+
+
+# ----------------------------
+# CREATE LAGGED DATA
+# ----------------------------
+def make_lagged_frame(ts, lags=3):
+
+    df = pd.DataFrame({"target": ts})
+
+    for i in range(1, lags + 1):
+        df[f"lag_{i}"] = df["target"].shift(i)
+
+    df = df.dropna()
+
+    return df

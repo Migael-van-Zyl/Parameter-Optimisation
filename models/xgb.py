@@ -1,130 +1,76 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Mon Feb 16 13:02:41 2026
 
-@author: MauduH
-"""
+from itertools import product
+import pandas as pd
 
-# # IMPORT LIBRARIES
-# import pandas as pd
-# import matplotlib.pyplot as plt
-# from xgboost import XGBClassifier
-# from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, ConfusionMatrixDisplay
+from Utils.data import make_customer_monthly_series, split_series_time, create_lagged_frame
+from Utils.metrics import mape
 
-# # LOAD DATA
-# train_df = pd.read_excel(r"C:\Users\MauduH\Documents\Migael\batchedtrain_dataset.xlsx")
-# test_df  = pd.read_excel(r"C:\Users\MauduH\Documents\Migael\batchedtrain_dataset.xlsx")
+try:
+    from xgboost import XGBRegressor
+except ImportError as e:
+    raise ImportError("xgboost is not installed. Run: pip install xgboost") from e
 
-# print("Train shape:", train_df.shape)
-# print("Test shape:", test_df.shape)
 
-# # CHECK COLUMN NAME
-# print("\nColumns available:")
-# print(train_df.columns)
+def run_xgboost_parameter_search(
+    customer_df: pd.DataFrame,
+    customer_id,
+    lags: int = 3,
+    param_grid: dict | None = None,
+):
+    if param_grid is None:
+        param_grid = {
+            "n_estimators": [100, 200],
+            "max_depth": [3, 6],
+            "learning_rate": [0.05, 0.1],
+        }
 
-# TARGET = "sic_batch"   
+    ts = make_customer_monthly_series(customer_df)
 
-# # CONVERT TARGET TO 0-BASED INDEX
-# train_df[TARGET] = train_df[TARGET] - 1
-# test_df[TARGET]  = test_df[TARGET] - 1
+    if len(ts) < 12:
+        return None
 
-# # REMOVE NON-NUMERIC COLUMNS
-# X_train = train_df.drop(columns=[TARGET])
-# X_test  = test_df.drop(columns=[TARGET])
+    lagged = create_lagged_frame(ts, lags=lags)
+    if len(lagged) < 8:
+        return None
 
-# X_train = X_train.select_dtypes(include=["number"])
-# X_test  = X_test.select_dtypes(include=["number"])
+    train_df, test_df = split_series_time(lagged, test_size=0.2)
 
-# y_train = train_df[TARGET]
-# y_test  = test_df[TARGET]
+    X_train = train_df.drop(columns=["target"])
+    y_train = train_df["target"]
 
-# # TRAIN MODEL
-# xgb_model = XGBClassifier(
-#     n_estimators=200,
-#     max_depth=6,
-#     learning_rate=0.1,
-#     subsample=0.8,
-#     colsample_bytree=0.8,
-#     random_state=42,
-#     eval_metric="mlogloss"
-# )
+    X_test = test_df.drop(columns=["target"])
+    y_test = test_df["target"]
 
-# xgb_model.fit(X_train, y_train)
+    best_mape = float("inf")
+    best_params = None
 
-# print("\nXGBoost training complete")
+    for n_estimators, max_depth, learning_rate in product(
+        param_grid["n_estimators"],
+        param_grid["max_depth"],
+        param_grid["learning_rate"],
+    ):
+        model = XGBRegressor(
+            n_estimators=n_estimators,
+            max_depth=max_depth,
+            learning_rate=learning_rate,
+            objective="reg:squarederror",
+            random_state=42,
+        )
 
-# # PREDICT
-# y_pred = xgb_model.predict(X_test)
+        model.fit(X_train, y_train)
+        preds = model.predict(X_test)
+        score = mape(y_test, preds)
 
-# # RESULTS
-# print("\nAccuracy:", accuracy_score(y_test, y_pred))
-# print("\nClassification Report:")
-# print(classification_report(y_test, y_pred))
+        if score < best_mape:
+            best_mape = score
+            best_params = {
+                "n_estimators": n_estimators,
+                "max_depth": max_depth,
+                "learning_rate": learning_rate,
+            }
 
-# # CONFUSION MATRIX
-# cm = confusion_matrix(y_test, y_pred)
-
-# labels = sorted(y_test.unique())
-
-# disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=labels)
-
-# plt.figure(figsize=(10,7))
-# disp.plot(values_format="d")
-# plt.title("XGBoost Confusion Matrix")
-# plt.tight_layout()
-# plt.show()
-
-# print(train_df["sic_batch"].value_counts().sort_index())
-
-# models/xgb_model.py
-# from xgboost import XGBClassifier
-# from typing import Optional, Dict
-
-# DEFAULT_XGB_PARAMS: Dict = {
-#     "n_estimators": 200,
-#     "max_depth": 6,
-#     "learning_rate": 0.1,
-#     "subsample": 0.8,
-#     "colsample_bytree": 0.8,
-#     "random_state": 42,
-#     "eval_metric": "mlogloss",
-# }
-
-# def train_xgb(
-#     X_train,
-#     y_train,
-#     params: Optional[Dict] = None
-# ) -> XGBClassifier:
-#     """
-#     Trains an XGBClassifier and returns the fitted model.
-#     """
-#     xgb_params = {**DEFAULT_XGB_PARAMS, **(params or {})}
-#     model = XGBClassifier(**xgb_params)
-#     model.fit(X_train, y_train)
-#     return model
-
-# def predict_xgb(model: XGBClassifier, X_test):
-#     return model.predict(X_test)
-
-# models/xgb.py
-from xgboost import XGBClassifier
-from typing import Optional, Dict
-
-DEFAULT_XGB_PARAMS: Dict = {
-    "n_estimators": 200,
-    "max_depth": 6,
-    "learning_rate": 0.1,
-    "subsample": 0.8,
-    "colsample_bytree": 0.8,
-    "random_state": 42,
-    "eval_metric": "mlogloss",
-}
-
-def train_xgb(X_train, y_train, params: Optional[Dict] = None) -> XGBClassifier:
-    params = {**DEFAULT_XGB_PARAMS, **(params or {})}
-    model = XGBClassifier(**params)
-    model.fit(X_train, y_train)
-    return model
-
-def predict_xgb(model: XGBClassifier, X_test):
-    return model.predict(X_test)
+    return {
+        "customerid": customer_id,
+        "best_params": best_params,
+        "mape": best_mape,
+    }
