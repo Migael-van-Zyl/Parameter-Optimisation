@@ -1,4 +1,4 @@
 
-import models.arima_mape
+import models.auto_sarima
 
 
