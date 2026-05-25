@@ -2,19 +2,18 @@ import pandas as pd
 import numpy as np
 import os
 from itertools import product
-from sklearn.ensemble import RandomForestRegressor
+from xgboost import XGBRegressor
 
 # =========================
 # SETTINGS
 # =========================
 file_path = r"C:\Users\MauduH\OneDrive - Eskom Holdings SOC Ltd\Python Projects\Parameter-Optimisation\data\Input Dataset - cleanedFortrack_dataset.xlsx"
 
-
-output_folder = r"C:\Users\MauduH\OneDrive - Eskom Holdings SOC Ltd\Python Projects\Parameter-Optimisation\results\rf_feature_engineering_results"
+output_folder = r"C:\Users\MauduH\OneDrive - Eskom Holdings SOC Ltd\Python Projects\Parameter-Optimisation\results\xgb_feature_engineering_results"
 os.makedirs(output_folder, exist_ok=True)
 
 category = "Agriculture"
-subsic = "Berries"   
+subsic = "Cereal"  
 
 consumption_col = "totalconsumption"
 
@@ -23,9 +22,10 @@ min_history = 24
 
 lags = list(range(12, 25)) + [36, 48]
 
+# XGBoost parameter grid
 n_estimators_values = [100, 200, 300, 400, 500]
-max_depth_values = [5, 10, 15]
-min_samples_split_values = [2, 5]
+max_depth_values = [3, 5, 7]
+learning_rate_values = [0.05, 0.1]
 
 # =========================
 # METRICS
@@ -71,7 +71,6 @@ def create_features(ts, lags):
 
     df_feat["month"] = df_feat.index.month
 
-    # Holiday count feature
     holiday_map = {
         1: 1,
         2: 0,
@@ -89,11 +88,9 @@ def create_features(ts, lags):
 
     df_feat["holiday_count"] = df_feat["month"].map(holiday_map)
 
-    # Cyclical month features
     df_feat["month_sin"] = np.sin(2 * np.pi * df_feat["month"] / 12)
     df_feat["month_cos"] = np.cos(2 * np.pi * df_feat["month"] / 12)
 
-    # Season and demand features
     df_feat["season"] = df_feat["month"].apply(season_from_month)
     df_feat["demand_season"] = df_feat["month"].apply(demand_season_from_month)
 
@@ -103,7 +100,6 @@ def create_features(ts, lags):
         drop_first=False
     )
 
-    # Lag features
     for lag in lags:
         df_feat[f"lag_{lag}"] = df_feat["target"].shift(lag)
 
@@ -164,7 +160,7 @@ df = df[
 ].copy()
 
 print("\n==============================")
-print("RANDOM FOREST WITH FEATURE ENGINEERING")
+print("XGBOOST WITH FEATURE ENGINEERING")
 print("==============================")
 print("Category:", category)
 print("SubSIC:", subsic)
@@ -202,16 +198,17 @@ for i, customer in enumerate(customers, start=1):
     best_mae = np.inf
     best_params = None
 
-    for n_estimators, max_depth, min_samples_split in product(
+    for n_estimators, max_depth, learning_rate in product(
         n_estimators_values,
         max_depth_values,
-        min_samples_split_values
+        learning_rate_values
     ):
         try:
-            model = RandomForestRegressor(
+            model = XGBRegressor(
                 n_estimators=n_estimators,
                 max_depth=max_depth,
-                min_samples_split=min_samples_split,
+                learning_rate=learning_rate,
+                objective="reg:squarederror",
                 random_state=42,
                 n_jobs=-1
             )
@@ -228,7 +225,7 @@ for i, customer in enumerate(customers, start=1):
                 best_params = {
                     "n_estimators": n_estimators,
                     "max_depth": max_depth,
-                    "min_samples_split": min_samples_split
+                    "learning_rate": learning_rate
                 }
 
         except Exception as e:
@@ -242,7 +239,7 @@ for i, customer in enumerate(customers, start=1):
             "customerid": customer,
             "best_n_estimators": best_params["n_estimators"],
             "best_max_depth": best_params["max_depth"],
-            "best_min_samples_split": best_params["min_samples_split"],
+            "best_learning_rate": best_params["learning_rate"],
             "best_MAPE": best_mape,
             "best_MAE": best_mae,
             "lags_used": str(lags),
@@ -251,7 +248,7 @@ for i, customer in enumerate(customers, start=1):
         })
 
         print(
-            f"Best RF for customer {customer}: {best_params} | "
+            f"Best XGBoost for customer {customer}: {best_params} | "
             f"MAPE: {best_mape:.2f}% | MAE: {best_mae:.2f}"
         )
 
@@ -265,12 +262,12 @@ safe_subsic = subsic.lower().replace(" ", "_")
 
 best_file = os.path.join(
     output_folder,
-    f"{safe_category}_{safe_subsic}_best_rf_feature_engineering_results.xlsx"
+    f"{safe_category}_{safe_subsic}_best_xgboost_feature_engineering_results.xlsx"
 )
 
 freq_file = os.path.join(
     output_folder,
-    f"{safe_category}_{safe_subsic}_rf_feature_engineering_parameter_frequency.xlsx"
+    f"{safe_category}_{safe_subsic}_xgboost_feature_engineering_parameter_frequency.xlsx"
 )
 
 results_df.to_excel(best_file, index=False)
@@ -283,7 +280,7 @@ if not results_df.empty:
             "subsic",
             "best_n_estimators",
             "best_max_depth",
-            "best_min_samples_split"
+            "best_learning_rate"
         ])
         .size()
         .reset_index(name="count")
@@ -292,7 +289,7 @@ if not results_df.empty:
 
     param_frequency.to_excel(freq_file, index=False)
 
-    print("\nMost common RF parameters:")
+    print("\nMost common XGBoost parameters:")
     print(param_frequency.head())
 
 print("\nDone.")
